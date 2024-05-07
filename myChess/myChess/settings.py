@@ -19,17 +19,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 
-if 'RENDER' in os.environ:
-    SECRET_KEY = os.environ.get('SECRET_KEY')
-else:
-    SECRET_KEY = os.environ.get('SECRET_KEY', default='your secret key')
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'cg#p$g+j9tax!#a3cup@1$8obt2_+&k3q+pmu)5%asj6yjpkag')
 
-# SECURITY WARNING: don't run with debug turned on in production!
-# by default debug is set to true locally and to false in render
-if 'DEBUG' in os.environ:
-    DEBUG = os.environ.get('DEBUG').lower() in ['true', 't', '1']
-else:
-    DEBUG = 'RENDER' not in os.environ
+DEBUG = os.environ.get('DJANGO_DEBUG', '') != 'False'
 
 
 # SECURITY WARNING: don't run with debug turned on in production!
