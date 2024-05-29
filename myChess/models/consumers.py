@@ -26,7 +26,7 @@ class ChessConsumer(AsyncWebsocketConsumer):
         # Obtiene el token del usuario
         self.token = self.scope['query_string'].decode('utf-8')
 
-        print("Este es el gameID que me llega -> " + self.gameID + " Con el token " + str(self.token))
+        print("Este es el gameID que me llega -> " + str(self.gameID) + " Con el token " + str(self.token))
 
         # Para que sea compatible con los test
         if not self.token:
@@ -40,8 +40,6 @@ class ChessConsumer(AsyncWebsocketConsumer):
             await self.send(text_data=json.dumps({
                 'type': 'error',
                 'message': f'Invalid game with id {self.gameID}',
-                'status': None,
-                'playerID': None,
             }))
             await self.close()
             return
@@ -57,14 +55,20 @@ class ChessConsumer(AsyncWebsocketConsumer):
             await self.send(text_data=json.dumps({
                 'type': 'error',
                 'message': message,
-                'status': self.game.status.upper(),
-                'playerID': None,
             }))
             await self.close()
         else:
             await self.accept()
             await self.channel_layer.group_add(str(self.gameID), self.channel_name)
-            await self.game_cb('game', 'OK', self.game.status.upper(), self.user.id, self.game.board_state)
+
+            dict = {
+                "type" : "game_cb",
+                'message': message,
+                'status': self.game.status.upper(),
+                'playerID': self.user.id,
+            }
+            
+            await self.channel_layer.group_send(str(self.gameID), dict)
 
 
     async def receive(self, text_data):
@@ -89,46 +93,45 @@ class ChessConsumer(AsyncWebsocketConsumer):
                     move_to=to,
                     promotion=promotion
                 )
-                
-                await self.move_cb('move', _from, to, playerID, promotion, None)
+                dict = {
+                    "type" : "move_cb",
+                    'from': _from,
+                    'to': to,
+                    'playerID': playerID,
+                    "promotion" : promotion
+                }
+                await self.channel_layer.group_send(str(self.gameID), dict)
             except ValidationError:
                 message = f"Error: invalid move (game is not active)"
-                await self.move_cb('error', _from, to, playerID, promotion, message)
+                await self.send(text_data=json.dumps({"type":'error', "message" : message}))
             except ValueError:
                 message = f'Error: invalid move {_from}{to}'
-                await self.move_cb('error', _from, to, playerID, promotion, message)
-            except Exception:
-                await self.move_cb('error', _from, to, playerID, promotion, None)
+                await self.send(text_data=json.dumps({"type":'error', "message" : message}))
+            except Exception as ex:
+                 message = f'Error: an exception has been produced ' + str(ex)
+                await self.send(text_data=json.dumps({"type":'error', "message" : message}))
         else:
+            await self.send(text_data=json.dumps({"type":'error', "message" : "Se ha recibido un mensaje no entendido"}))
             return
 
-    async def game_cb(self, _type, message, status, player_id, board_status):
-        await self.channel_layer.group_send(
-            str(self.gameID),
-            {
-                'type': 'game.message',  
-                'message': {
-                    'type': _type,
-                    'message': message,
-                    'status': status,
-                    'playerID': player_id,
-                    'board_status' : board_status,
-                }
-            }
+    async def game_cb(self, arg):
+        await self.send(text_data=json.dumps({
+                'type': 'game',  
+                'message': arg["message"],
+                'status': arg["status"],
+                'playerID': arg["playerID"],
+                'board_status' : arg["status"],
+            })
         )
 
-    async def move_cb(self, _type, m_from, m_to, player_id, promotion, _message):
-        await self.channel_layer.group_send(str(self.gameID),{
-                'type': 'move.message',  
-                'message': {
-                    'type': _type,
-                    'from': m_from,
-                    'to': m_to,
-                    'playerID': player_id,
-                    'promotion': promotion,
-                    'message': _message, 
-                }
-            }
+    async def move_cb(self, arg):
+        await self.send(text_data=json.dumps({
+                'type': 'move',  
+                'from': arg["from"],
+                'to': arg["to"],
+                'playerID': arg["playerID"],
+                'promotion': arg["promotion"],
+            })
         )
 
     async def move_message(self, event):
