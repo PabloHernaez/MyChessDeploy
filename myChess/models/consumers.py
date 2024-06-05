@@ -64,7 +64,7 @@ class ChessConsumer(AsyncWebsocketConsumer):
             dict = {
                 "type" : "game_cb",
                 'message': message,
-                'status': self.game.status.upper(),
+                'status': self.game.board_state,
                 'playerID': self.user.id,
             }
             
