@@ -124,7 +124,7 @@ class ChessConsumer(AsyncWebsocketConsumer):
                 message = f'Error: an exception has been produced ' + str(ex)
                 await self.send(text_data=json.dumps({"type":'error', "message" : message}))
         
-        elif (data['type'] == 'move'):
+        elif (data['type'] == 'message'):
             print("Se trata de un mensaje")
             try:
                 playerID = data['playerID']
