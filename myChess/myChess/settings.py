@@ -28,7 +28,7 @@ DEBUG = os.environ.get('DJANGO_DEBUG', '') != 'False'
 DEBUG = True
 
 ALLOWED_HOSTS = ["192.168.1.58","localhost","127.0.0.1","mychessdeploy.onrender.com"]
-
+#ALLOWED_HOSTS = []
 
 # Application definition
 
@@ -125,7 +125,7 @@ NEONTECH = 'postgresql://pablohernaezdelgado:paoIbA7K4hiC@ep-long-fire-a25uol2t.
 #        NEONTECH, 
 #        conn_max_age=600
 #    )
-databaseenv = dj_database_url.parse(NEONTECH, conn_max_age=600,)
+databaseenv = dj_database_url.parse(LOCALPOSTGRES, conn_max_age=600,)
 
 DATABASES['default'].update(databaseenv)
 

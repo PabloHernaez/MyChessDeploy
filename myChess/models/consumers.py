@@ -4,7 +4,7 @@ from django.core.mail import message
 from django.test.testcases import ValidationError
 from channels.db import database_sync_to_async
 from django.contrib.auth.models import User
-from .models import ChessMove, ChessGame, Player
+from .models import ChessMove, ChessGame, Player, ChessMessage
 from channels.generic.websocket import AsyncWebsocketConsumer
 from rest_framework.authtoken.models import Token
 from asgiref.sync import sync_to_async
@@ -61,11 +61,16 @@ class ChessConsumer(AsyncWebsocketConsumer):
             await self.accept()
             await self.channel_layer.group_add(str(self.gameID), self.channel_name)
 
+            print("Conexion con el websocket correcta, enviando mensaje por el game_cb, linkado del usuario: " + str(self.user))
+
+            message = "Se ha establecido correctamente la conexion con el WebSocket"
+
             dict = {
                 "type" : "game_cb",
                 'message': message,
-                'status': self.game.board_state,
+                'board_state': self.game.board_state,
                 'playerID': self.user.id,
+                'status' : self.game.status,
             }
             
             await self.channel_layer.group_send(str(self.gameID), dict)
@@ -80,12 +85,16 @@ class ChessConsumer(AsyncWebsocketConsumer):
         promotion = ''
         # Comprueba el tipo de mensaje
         if data['type'] == 'move':
+            print("Se trata de un movimiento")
             try:
                 _from = data['from']
                 to = data['to']
                 playerID = data['playerID']
-                promotion = data['promotion']
-        # Crea un nuevo movimiento, se llama a save con la creación y en ese método se comprueba la validez del movimiento.
+                if "promotion" in data:
+                    promotion = data['promotion']
+                else:
+                    promotion = None
+                # Crea un nuevo movimiento, se llama a save con la creación y en ese método se comprueba la validez del movimiento.
                 await sync_to_async(ChessMove.objects.create)(
                     game=self.game,
                     player=self.user,
@@ -93,6 +102,7 @@ class ChessConsumer(AsyncWebsocketConsumer):
                     move_to=to,
                     promotion=promotion
                 )
+
                 dict = {
                     "type" : "move_cb",
                     'from': _from,
@@ -100,6 +110,9 @@ class ChessConsumer(AsyncWebsocketConsumer):
                     'playerID': playerID,
                     "promotion" : promotion
                 }
+
+                print("El diccionario que va a suponer el movimiento del juego es " + str(dict))
+
                 await self.channel_layer.group_send(str(self.gameID), dict)
             except ValidationError:
                 message = f"Error: invalid move (game is not active)"
@@ -108,19 +121,53 @@ class ChessConsumer(AsyncWebsocketConsumer):
                 message = f'Error: invalid move {_from}{to}'
                 await self.send(text_data=json.dumps({"type":'error', "message" : message}))
             except Exception as ex:
-                 message = f'Error: an exception has been produced ' + str(ex)
+                message = f'Error: an exception has been produced ' + str(ex)
                 await self.send(text_data=json.dumps({"type":'error', "message" : message}))
+        
+        elif (data['type'] == 'move'):
+            print("Se trata de un mensaje")
+            try:
+                playerID = data['playerID']
+                message = data['message']
+
+                await sync_to_async(ChessMessage.objects.create)(
+                    game=self.game,
+                    player=self.user,
+                    message=message 
+                )
+
+                dict = {
+                    "type" : "message_cb",
+                    "playerID" : playerID,
+                    "message" : message
+                }
+
+                await self.channel_layer.group_send(str(self.gameID), dict)
+
+            except ValidationError:
+                message = f"Error: invalid move (game is not active)"
+                await self.send(text_data=json.dumps({"type":'error', "message" : message}))
+            except ValueError:
+                message = f'Error: invalid move {_from}{to}'
+                await self.send(text_data=json.dumps({"type":'error', "message" : message}))
+            except Exception as ex:
+                message = f'Error: an exception has been produced ' + str(ex)
+                await self.send(text_data=json.dumps({"type":'error', "message" : message}))
+
         else:
             await self.send(text_data=json.dumps({"type":'error', "message" : "Se ha recibido un mensaje no entendido"}))
             return
 
     async def game_cb(self, arg):
+
+        print("Dentro del callback de game enviaremos " + str(arg))
+
         await self.send(text_data=json.dumps({
-                'type': 'game',  
+                'type': 'game',
                 'message': arg["message"],
                 'status': arg["status"],
                 'playerID': arg["playerID"],
-                'board_status' : arg["status"],
+                'board_status' : arg["board_state"],
             })
         )
 
@@ -131,6 +178,14 @@ class ChessConsumer(AsyncWebsocketConsumer):
                 'to': arg["to"],
                 'playerID': arg["playerID"],
                 'promotion': arg["promotion"],
+            })
+        )
+
+    async def message_cb(self, arg):
+        await self.send(text_data=json.dumps({
+                'type' : 'message',
+                'playerID' : arg["playerID"],
+                'message' : arg["message"]
             })
         )
 

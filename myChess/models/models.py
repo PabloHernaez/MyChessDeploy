@@ -32,7 +32,7 @@ class ChessGame(models.Model):
     PENDING = 'PENDING'
     ACTIVE = 'ACTIVE'
     FINISHED = 'FINISHED'
-    DEFAULT_BOARD_STATE = chess.STARTING_FEN
+    DEFAULT_BOARD_STATE = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"#chess.STARTING_FEN
     STATUS_CHOICES = [
             ('PENDING', 'pending'),
             ('ACTIVE', 'active'),
@@ -103,6 +103,25 @@ class ChessGame(models.Model):
         return f"GameID=({self.id}) {white_data} vs {black_data}"
 
 
+class ChessMessage(models.Model):
+
+    game = models.ForeignKey(
+        'ChessGame', 
+        on_delete=models.RESTRICT
+    )
+
+    player = models.ForeignKey(
+        'Player',
+        on_delete=models.RESTRICT
+    )
+
+    message = models.TextField()
+
+    def __str__(self):
+        return "El usuario " + self.player.username + " envia el mensaje de: " + str(self.message)
+
+
+
 class ChessMove(models.Model):
 
     PROMOTIONS = (
@@ -143,7 +162,8 @@ class ChessMove(models.Model):
 
     def save(self, *args, **kwargs):
         self.game.refresh_from_db()
-        if self.game.status == 'active':
+        print("\n\n\n BASE DE DATOS, LOS VALORES DEL ESTADO DEL JUEGO DE" + str(self.game.id) +" SON: " + str(self.game.status) + "\n\n\n")
+        if self.game.status == 'ACTIVE':
             fen_board = chess.Board(self.game.board_state)
             coords = str(self.move_from)+str(self.move_to)
             if self.promotion:
