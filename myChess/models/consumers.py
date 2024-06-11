@@ -183,7 +183,7 @@ class ChessConsumer(AsyncWebsocketConsumer):
 
     async def message_cb(self, arg):
         await self.send(text_data=json.dumps({
-                'type' : 'message',
+                'type' : 'chat',
                 'playerID' : arg["playerID"],
                 'message' : arg["message"]
             })
